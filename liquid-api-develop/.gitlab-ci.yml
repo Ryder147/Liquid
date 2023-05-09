@@ -1,0 +1,63 @@
+stages:
+  - build
+  - deploy
+
+variables:
+  API_DEV_IMAGE: registry.heroku.com/liquid-api-dev/web
+  API_MAIN_IMAGE: registry.heroku.com/liquid-api-prod/web
+  PYTHON_IMAGE: python:3.10.4
+  HEROKU_DEV_APP_NAME: liquid-api-dev
+  HEROKU_PROD_APP_NAME: liquid-api-prod
+
+build:dev:
+  image: docker:latest
+  stage: build
+  services:
+    - docker:dind
+  only:
+    refs:
+      - develop
+      - merge_requests
+  script:
+    - docker build --build-arg image=$PYTHON_IMAGE --no-cache -f ./Dockerfile -t $API_DEV_IMAGE .
+    - docker login -u _ -p $HEROKU_API_KEY registry.heroku.com
+    - docker push $API_DEV_IMAGE
+
+deploy:dev:
+  image: docker:latest
+  stage: deploy
+  services:
+    - docker:dind
+  only:
+    refs:
+      - develop
+  script:
+    - docker login -u _ -p $HEROKU_API_KEY registry.heroku.com
+    - docker pull $API_DEV_IMAGE
+    - docker run --rm -e HEROKU_API_KEY=$HEROKU_API_KEY wingrunr21/alpine-heroku-cli container:release web --app $HEROKU_DEV_APP_NAME
+
+build:prod:
+  image: docker:latest
+  stage: build
+  services:
+    - docker:dind
+  only:
+    refs:
+      - main
+  script:
+    - docker build --build-arg image=$PYTHON_IMAGE --no-cache -f ./Dockerfile -t $API_MAIN_IMAGE .
+    - docker login -u _ -p $HEROKU_API_KEY registry.heroku.com
+    - docker push $API_MAIN_IMAGE
+
+deploy:prod:
+  image: docker:latest
+  stage: deploy
+  services:
+    - docker:dind
+  only:
+    refs:
+      - main
+  script:
+    - docker login -u _ -p $HEROKU_API_KEY registry.heroku.com
+    - docker pull $API_MAIN_IMAGE
+    - docker run --rm -e HEROKU_API_KEY=$HEROKU_API_KEY wingrunr21/alpine-heroku-cli container:release web --app $HEROKU_PROD_APP_NAME
